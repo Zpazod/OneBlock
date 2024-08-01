@@ -130,7 +130,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             event.setCancelled(true);
 
             ItemStack droppedItem = new ItemStack(block.getType());
-            block.getWorld().dropItemNaturally(block.getLocation(), droppedItem);
+            block.getWorld().dropItemNaturally(player.getLocation(), droppedItem);
 
             Material newMaterial = getRandomMaterial();
             block.setType(newMaterial);
