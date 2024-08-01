@@ -54,7 +54,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             }
         });
 
-        // Start game loop
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -62,9 +62,9 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
                     advanceStage();
                 }
             }
-        }.runTaskTimer(this, 3600, 3600); // Run every 3 minutes (3600 ticks)
+        }.runTaskTimer(this, 3600, 3600);
 
-        // Start border shrinking
+
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -72,11 +72,11 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
                     shrinkBorder();
                 }
             }
-        }.runTaskTimer(this, 6000, 6000); // Run every 5 minutes (6000 ticks)
+        }.runTaskTimer(this, 6000, 6000);
     }
 
     private void initializeStageMaterials() {
-        stageBlocks.put(1, Arrays.asList(Material.STONE, Material.DIRT, Material.GRASS_BLOCK, Material.OAK_LOG, Material.SAND, Material.GRAVEL, Material.OAK_LEAVES, Material.COBBLESTONE, Material.PUMPKIN, Material.MELON));
+        stageBlocks.put(1, Arrays.asList(Material.STONE, Material.DIRT, Material.GRASS_BLOCK, Material.OAK_LOG, Material.GRAVEL, Material.OAK_LEAVES, Material.COBBLESTONE, Material.PUMPKIN, Material.MELON));
         stageBlocks.put(2, Arrays.asList(Material.IRON_ORE, Material.COAL_ORE, Material.OAK_PLANKS, Material.BIRCH_LOG, Material.CLAY, Material.WATER, Material.BIRCH_LEAVES, Material.BRICKS, Material.REDSTONE_BLOCK, Material.SANDSTONE));
         stageBlocks.put(3, Arrays.asList(Material.GOLD_ORE, Material.LAPIS_ORE, Material.SPRUCE_LOG, Material.STONE_BRICKS, Material.GLASS, Material.LAVA, Material.SPRUCE_LEAVES, Material.HAY_BLOCK, Material.MOSSY_COBBLESTONE, Material.ICE));
         stageBlocks.put(4, Arrays.asList(Material.DIAMOND_ORE, Material.REDSTONE_ORE, Material.JUNGLE_LOG, Material.NETHER_QUARTZ_ORE, Material.OBSIDIAN, Material.QUARTZ_BLOCK, Material.JUNGLE_LEAVES, Material.TERRACOTTA, Material.GLOWSTONE, Material.END_STONE));
