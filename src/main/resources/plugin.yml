@@ -1,0 +1,11 @@
+name: oneblock
+version: '1.0-SNAPSHOT'
+main: org.example.oneblock.OneBlockPlugin
+api-version: '1.20'
+commands:
+  startoneblock:
+    description: Starts a new OneBlock game
+    usage: /<command>
+  stoponeblock:
+    description: Stops the current OneBlock game
+    usage: /<command>
