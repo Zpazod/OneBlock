@@ -14,6 +14,7 @@ import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -127,6 +128,10 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
         if (playerBlocks.containsValue(block.getLocation())) {
             event.setCancelled(true);
+
+            ItemStack droppedItem = new ItemStack(block.getType());
+            block.getWorld().dropItemNaturally(block.getLocation(), droppedItem);
+
             Material newMaterial = getRandomMaterial();
             block.setType(newMaterial);
 
