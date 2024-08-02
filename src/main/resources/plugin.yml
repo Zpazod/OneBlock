@@ -6,9 +6,16 @@ commands:
   startoneblock:
     description: Starts a new OneBlock game
     usage: /<command>
+    permission: oneblock.admin
   stoponeblock:
     description: Stops the current OneBlock game
     usage: /<command>
+    permission: oneblock.admin
   gameinfo:
     description: Show information of the current stage
     usage: /<command>
+  permission: oneblock.admin
+  permissions:
+    oneblock.admin:
+      default: op
+
