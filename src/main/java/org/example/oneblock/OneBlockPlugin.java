@@ -131,12 +131,18 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             @Override
             public void run() {
                 if (gameActive) {
-                    advanceStage();
+                    if (timeUntilNextStage <= 0) {
+                        advanceStage();
+                        timeUntilNextStage = 3600;
+                    } else {
+                        timeUntilNextStage -= 20;
+                    }
                 }
             }
-        }.runTaskTimer(this, 3600, 3600);
+        }.runTaskTimer(this, 20, 20);
         timeUntilNextStage = 3600;
     }
+
 
     private void scheduleBorderShrinkTimer() {
         borderShrinkTimer = new BukkitRunnable() {
@@ -192,9 +198,10 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             stage++;
             spawnAnimals();
             Bukkit.broadcast(Component.text("Stage " + stage + " has begun! New blocks and animals are now available.").color(NamedTextColor.GREEN));
-            timeUntilNextStage = 3600;
+            timeUntilNextStage = 3600; // Reset the stage duration
         }
     }
+
 
     private void spawnAnimals() {
         List<EntityType> animals = stageAnimals.get(stage);
