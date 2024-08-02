@@ -15,6 +15,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
@@ -30,8 +31,9 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     private int stage = 1;
     private Map<Integer, List<Material>> stageBlocks = new HashMap<>();
     private Map<Integer, List<EntityType>> stageAnimals = new HashMap<>();
-    private BukkitRunnable stageTimer;
-    private BukkitRunnable borderShrinkTimer;
+    private BukkitTask stageTimer;
+    private BukkitTask borderShrinkTimer;
+    private long timeUntilNextStage = 0;
 
     @Override
     public void onEnable() {
@@ -61,9 +63,8 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
         getCommand("gameinfo").setExecutor((sender, command, label, args) -> {
             if (gameActive) {
-                long timeUntilNextStage = (stageTimer.getTaskId() * 50L) / 1000L; // Convert ticks to seconds
                 sender.sendMessage(Component.text("Current Stage: " + stage).color(NamedTextColor.GREEN));
-                sender.sendMessage(Component.text("Time until next stage: " + timeUntilNextStage + " seconds").color(NamedTextColor.GREEN));
+                sender.sendMessage(Component.text("Time until next stage: " + timeUntilNextStage / 20 + " seconds").color(NamedTextColor.GREEN));
             } else {
                 sender.sendMessage(Component.text("No game is currently active!").color(NamedTextColor.RED));
             }
@@ -108,7 +109,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             chunkFuture.thenAccept(chunk -> {
                 blockLoc.getBlock().setType(Material.GRASS_BLOCK);
                 playerBlocks.put(player, blockLoc);
-                // Place a bedrock block beneath the initial block
+
                 blockLoc.clone().add(0, -1, 0).getBlock().setType(Material.BEDROCK);
                 player.teleportAsync(blockLoc.clone().add(0.5, 1, 0.5));
             });
@@ -133,8 +134,8 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
                     advanceStage();
                 }
             }
-        };
-        stageTimer.runTaskTimer(this, 6000, 6000); // Change to desired timing (6000 ticks for 5 minutes)
+        }.runTaskTimer(this, 3600, 3600);
+        timeUntilNextStage = 3600;
     }
 
     private void scheduleBorderShrinkTimer() {
@@ -145,8 +146,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
                     shrinkBorder();
                 }
             }
-        };
-        borderShrinkTimer.runTaskTimer(this, 6000, 6000); // Change to desired timing (6000 ticks for 5 minutes)
+        }.runTaskTimer(this, 6000, 6000);
     }
 
     @EventHandler
@@ -179,6 +179,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     }
 
     private Material getRandomMaterial() {
+
         List<Material> materials = IntStream.rangeClosed(1, stage)
                 .mapToObj(stageBlocks::get)
                 .flatMap(List::stream)
@@ -191,6 +192,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             stage++;
             spawnAnimals();
             Bukkit.broadcast(Component.text("Stage " + stage + " has begun! New blocks and animals are now available.").color(NamedTextColor.GREEN));
+            timeUntilNextStage = 3600;
         }
     }
 
@@ -246,9 +248,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             player.sendMessage(Component.text("OneBlock game has ended!").color(NamedTextColor.RED));
         });
 
-
         Bukkit.getWorlds().forEach(w -> w.getWorldBorder().setSize(6000));
-
 
         World world = Bukkit.getWorlds().get(0);
         playerBlocks.values().forEach(location -> {
@@ -256,7 +256,6 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             block.setType(Material.AIR);
             location.clone().add(0, -1, 0).getBlock().setType(Material.AIR);
         });
-
 
         if (stageTimer != null) {
             stageTimer.cancel();
