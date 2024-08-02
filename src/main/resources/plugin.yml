@@ -1,6 +1,6 @@
 name: oneblock
 version: '1.0-SNAPSHOT'
-main: org.example.oneblock.OneBlockPlugin
+main: org.zpazod.oneblock.OneBlockPlugin
 api-version: '1.20'
 commands:
   startoneblock:
@@ -14,8 +14,9 @@ commands:
   gameinfo:
     description: Show information of the current stage
     usage: /<command>
-  permission: oneblock.admin
-  permissions:
-    oneblock.admin:
-      default: op
+    permission: oneblock.admin
+
+permissions:
+  oneblock.admin:
+    default: op
 
