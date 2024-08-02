@@ -9,3 +9,6 @@ commands:
   stoponeblock:
     description: Stops the current OneBlock game
     usage: /<command>
+  gameinfo:
+    description: Show information of the current stage
+    usage: /<command>

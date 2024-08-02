@@ -30,6 +30,8 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     private int stage = 1;
     private Map<Integer, List<Material>> stageBlocks = new HashMap<>();
     private Map<Integer, List<EntityType>> stageAnimals = new HashMap<>();
+    private BukkitRunnable stageTimer;
+    private BukkitRunnable borderShrinkTimer;
 
     @Override
     public void onEnable() {
@@ -57,23 +59,16 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             }
         });
 
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (gameActive) {
-                    advanceStage();
-                }
+        getCommand("gameinfo").setExecutor((sender, command, label, args) -> {
+            if (gameActive) {
+                long timeUntilNextStage = (stageTimer.getTaskId() * 50L) / 1000L; // Convert ticks to seconds
+                sender.sendMessage(Component.text("Current Stage: " + stage).color(NamedTextColor.GREEN));
+                sender.sendMessage(Component.text("Time until next stage: " + timeUntilNextStage + " seconds").color(NamedTextColor.GREEN));
+            } else {
+                sender.sendMessage(Component.text("No game is currently active!").color(NamedTextColor.RED));
             }
-        }.runTaskTimer(this, 3600, 3600);
-
-        new BukkitRunnable() {
-            @Override
-            public void run() {
-                if (gameActive) {
-                    shrinkBorder();
-                }
-            }
-        }.runTaskTimer(this, 6000, 6000);
+            return true;
+        });
     }
 
     private void initializeStageMaterials() {
@@ -100,12 +95,13 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
         World world = Bukkit.getWorlds().get(0);
         double angleIncrement = 360.0 / players.size();
+        int radius = 50;
 
         for (int i = 0; i < players.size(); i++) {
             Player player = players.get(i);
             double angle = Math.toRadians(i * angleIncrement);
-            int x = (int) (50 * Math.cos(angle));
-            int z = (int) (50 * Math.sin(angle));
+            int x = (int) (radius * Math.cos(angle));
+            int z = (int) (radius * Math.sin(angle));
             Location blockLoc = new Location(world, x, 100, z);
 
             CompletableFuture<Chunk> chunkFuture = world.getChunkAtAsync(blockLoc);
@@ -118,7 +114,39 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             });
         }
 
+
+        int worldBorderSize = (int) (radius * 2.5 * Math.sqrt(players.size()));
+        Bukkit.getWorlds().forEach(w -> w.getWorldBorder().setSize(worldBorderSize));
+
         Bukkit.broadcast(Component.text("L'event a commencé").color(NamedTextColor.GREEN));
+
+
+        scheduleStageTimer();
+        scheduleBorderShrinkTimer();
+    }
+
+    private void scheduleStageTimer() {
+        stageTimer = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (gameActive) {
+                    advanceStage();
+                }
+            }
+        };
+        stageTimer.runTaskTimer(this, 6000, 6000); // Change to desired timing (6000 ticks for 5 minutes)
+    }
+
+    private void scheduleBorderShrinkTimer() {
+        borderShrinkTimer = new BukkitRunnable() {
+            @Override
+            public void run() {
+                if (gameActive) {
+                    shrinkBorder();
+                }
+            }
+        };
+        borderShrinkTimer.runTaskTimer(this, 6000, 6000); // Change to desired timing (6000 ticks for 5 minutes)
     }
 
     @EventHandler
@@ -151,7 +179,6 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     }
 
     private Material getRandomMaterial() {
-
         List<Material> materials = IntStream.rangeClosed(1, stage)
                 .mapToObj(stageBlocks::get)
                 .flatMap(List::stream)
@@ -180,10 +207,9 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     public void onPlayerDeath(PlayerDeathEvent event) {
         if (!gameActive) return;
 
-        Player player = event.getPlayer();
+        Player player = event.getEntity();
+        player.sendMessage(Component.text("You have died! You are out of the OneBlock game.").color(NamedTextColor.RED));
         players.remove(player);
-        playerBlocks.remove(player);
-        player.setGameMode(GameMode.SPECTATOR);
         checkWinner();
     }
 
@@ -193,7 +219,6 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
         Player player = event.getPlayer();
         players.remove(player);
-        playerBlocks.remove(player);
         checkWinner();
     }
 
@@ -209,30 +234,38 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    public void endGame() {
-        gameActive = false;
-
-        for (Location loc : playerBlocks.values()) {
-            loc.getBlock().setType(Material.AIR);
-            loc.clone().add(0, -1, 0).getBlock().setType(Material.AIR);
-        }
-        players.clear();
-        playerBlocks.clear();
-        Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "worldborder set 1000");
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            player.setGameMode(GameMode.SURVIVAL);
-            player.teleportAsync(player.getWorld().getSpawnLocation());
-        }
-        Bukkit.broadcast(Component.text("The OneBlock game has ended!").color(NamedTextColor.GREEN));
+    private void shrinkBorder() {
+        World world = Bukkit.getWorlds().get(0);
+        WorldBorder border = world.getWorldBorder();
+        border.setSize(border.getSize() - 50);
     }
 
-    private void shrinkBorder() {
-        int newSize = borderSize - 100;
-        if (newSize > 50) {
-            borderSize = newSize;
-            Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "worldborder set " + newSize + " 300");
-        } else {
-            Bukkit.broadcast(Component.text("The border has stopped shrinking!").color(NamedTextColor.YELLOW));
+    private void endGame() {
+        gameActive = false;
+        players.forEach(player -> {
+            player.sendMessage(Component.text("OneBlock game has ended!").color(NamedTextColor.RED));
+        });
+
+
+        Bukkit.getWorlds().forEach(w -> w.getWorldBorder().setSize(6000));
+
+
+        World world = Bukkit.getWorlds().get(0);
+        playerBlocks.values().forEach(location -> {
+            Block block = world.getBlockAt(location);
+            block.setType(Material.AIR);
+            location.clone().add(0, -1, 0).getBlock().setType(Material.AIR);
+        });
+
+
+        if (stageTimer != null) {
+            stageTimer.cancel();
         }
+        if (borderShrinkTimer != null) {
+            borderShrinkTimer.cancel();
+        }
+
+        players.clear();
+        playerBlocks.clear();
     }
 }
