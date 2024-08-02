@@ -1,7 +1,8 @@
 name: oneblock
 version: '1.0-SNAPSHOT'
-main: org.zpazod.oneblock.OneBlockPlugin
+main: org.example.oneblock.OneBlockPlugin
 api-version: '1.20'
+
 commands:
   startoneblock:
     description: Starts a new OneBlock game
@@ -19,4 +20,5 @@ commands:
 permissions:
   oneblock.admin:
     default: op
+
 
