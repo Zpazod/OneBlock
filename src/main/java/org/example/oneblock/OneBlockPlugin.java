@@ -100,7 +100,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
         World world = Bukkit.getWorlds().get(0);
         double angleIncrement = 360.0 / players.size();
-        int radius = 50;
+        int radius = 100;
 
         for (int i = 0; i < players.size(); i++) {
             Player player = players.get(i);
