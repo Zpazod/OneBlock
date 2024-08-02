@@ -12,28 +12,29 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
+import org.bukkit.inventory.ItemStack;
+
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 
 public class OneBlockPlugin extends JavaPlugin implements Listener {
 
     private boolean gameActive = false;
     private List<Player> players = new ArrayList<>();
     private Map<Player, Location> playerBlocks = new HashMap<>();
+    private Set<Location> placedBlocks = new HashSet<>();
+    private Set<Location> initialBlocks = new HashSet<>();
     private int borderSize = 1000;
     private int stage = 1;
     private Map<Integer, List<Material>> stageBlocks = new HashMap<>();
     private Map<Integer, List<EntityType>> stageAnimals = new HashMap<>();
     private BukkitTask stageTimer;
+    private int timeUntilNextStage = 1800; // 3 minutes in seconds
     private BukkitTask borderShrinkTimer;
-    private long timeUntilNextStage = 0;
 
     @Override
     public void onEnable() {
@@ -42,34 +43,37 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
         initializeStageAnimals();
 
         getCommand("startoneblock").setExecutor((sender, command, label, args) -> {
-            if (!gameActive) {
-                initializeGame();
-                return true;
+            if (sender.hasPermission("oneblock.admin")) {
+                if (!gameActive) {
+                    initializeGame();
+                    return true;
+                } else {
+                    sender.sendMessage(Component.text("OneBlock game is already active!").color(NamedTextColor.GREEN));
+                    return false;
+                }
             } else {
-                sender.sendMessage(Component.text("OneBlock game is already active!").color(NamedTextColor.GREEN));
+                sender.sendMessage(Component.text("You do not have permission to execute this command.").color(NamedTextColor.RED));
                 return false;
             }
         });
 
         getCommand("stoponeblock").setExecutor((sender, command, label, args) -> {
-            if (gameActive) {
-                endGame();
-                return true;
+            if (sender.hasPermission("oneblock.admin")) {
+                if (gameActive) {
+                    endGame();
+                    return true;
+                } else {
+                    sender.sendMessage(Component.text("No game is currently active!").color(NamedTextColor.GREEN));
+                    return false;
+                }
             } else {
-                sender.sendMessage(Component.text("No game is currently active!").color(NamedTextColor.GREEN));
+                sender.sendMessage(Component.text("You do not have permission to execute this command.").color(NamedTextColor.RED));
                 return false;
             }
         });
 
-        getCommand("gameinfo").setExecutor((sender, command, label, args) -> {
-            if (gameActive) {
-                sender.sendMessage(Component.text("Current Stage: " + stage).color(NamedTextColor.GREEN));
-                sender.sendMessage(Component.text("Time until next stage: " + timeUntilNextStage / 20 + " seconds").color(NamedTextColor.GREEN));
-            } else {
-                sender.sendMessage(Component.text("No game is currently active!").color(NamedTextColor.RED));
-            }
-            return true;
-        });
+        scheduleStageTimer();
+        scheduleBorderShrinkTimer();
     }
 
     private void initializeStageMaterials() {
@@ -107,20 +111,19 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
             CompletableFuture<Chunk> chunkFuture = world.getChunkAtAsync(blockLoc);
             chunkFuture.thenAccept(chunk -> {
-                blockLoc.getBlock().setType(Material.GRASS_BLOCK);
+                Block initialBlock = blockLoc.getBlock();
+                initialBlock.setType(Material.GRASS_BLOCK);
+                placedBlocks.add(blockLoc);
+                initialBlocks.add(blockLoc.clone().add(0, -1, 0));
                 playerBlocks.put(player, blockLoc);
-
-                blockLoc.clone().add(0, -1, 0).getBlock().setType(Material.BEDROCK);
                 player.teleportAsync(blockLoc.clone().add(0.5, 1, 0.5));
             });
         }
-
 
         int worldBorderSize = (int) (radius * 2.5 * Math.sqrt(players.size()));
         Bukkit.getWorlds().forEach(w -> w.getWorldBorder().setSize(worldBorderSize));
 
         Bukkit.broadcast(Component.text("L'event a commencé").color(NamedTextColor.GREEN));
-
 
         scheduleStageTimer();
         scheduleBorderShrinkTimer();
@@ -133,16 +136,14 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
                 if (gameActive) {
                     if (timeUntilNextStage <= 0) {
                         advanceStage();
-                        timeUntilNextStage = 3600;
+                        timeUntilNextStage = 1800;
                     } else {
                         timeUntilNextStage -= 20;
                     }
                 }
             }
         }.runTaskTimer(this, 20, 20);
-        timeUntilNextStage = 3600;
     }
-
 
     private void scheduleBorderShrinkTimer() {
         borderShrinkTimer = new BukkitRunnable() {
@@ -155,53 +156,14 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
         }.runTaskTimer(this, 6000, 6000);
     }
 
-    @EventHandler
-    public void onBlockBreak(BlockBreakEvent event) {
-        if (!gameActive) return;
-
-        Player player = event.getPlayer();
-        Block block = event.getBlock();
-
-        if (playerBlocks.containsValue(block.getLocation())) {
-            event.setCancelled(true);
-
-
-            ItemStack tool = player.getInventory().getItemInMainHand();
-            Collection<ItemStack> drops = block.getDrops(tool);
-
-
-            for (ItemStack drop : drops) {
-                block.getWorld().dropItemNaturally(player.getLocation(), drop);
-            }
-
-            Material newMaterial = getRandomMaterial();
-            block.setType(newMaterial);
-
-            new ParticleBuilder(Particle.EXPLOSION_LARGE)
-                    .location(block.getLocation())
-                    .count(1)
-                    .spawn();
-        }
-    }
-
-    private Material getRandomMaterial() {
-
-        List<Material> materials = IntStream.rangeClosed(1, stage)
-                .mapToObj(stageBlocks::get)
-                .flatMap(List::stream)
-                .collect(Collectors.toList());
-        return materials.get(new Random().nextInt(materials.size()));
-    }
-
     private void advanceStage() {
         if (stage < 5) {
             stage++;
             spawnAnimals();
             Bukkit.broadcast(Component.text("Stage " + stage + " has begun! New blocks and animals are now available.").color(NamedTextColor.GREEN));
-            timeUntilNextStage = 3600; // Reset the stage duration
+            timeUntilNextStage = 1800;
         }
     }
-
 
     private void spawnAnimals() {
         List<EntityType> animals = stageAnimals.get(stage);
@@ -213,12 +175,35 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
+    public void onBlockBreak(BlockBreakEvent event) {
+        if (!gameActive) return;
+
+        Player player = event.getPlayer();
+        Block block = event.getBlock();
+        Location blockLoc = block.getLocation();
+
+        if (playerBlocks.containsValue(blockLoc)) {
+            event.setDropItems(false);
+            Material newMaterial = getRandomMaterial();
+            block.setType(newMaterial);
+            new ParticleBuilder(Particle.EXPLOSION_LARGE).location(blockLoc).count(1).spawn();
+            block.getWorld().dropItemNaturally(blockLoc, new ItemStack(block.getType()));
+        }
+    }
+
+    private Material getRandomMaterial() {
+        List<Material> materials = stageBlocks.get(stage);
+        return materials.get(new Random().nextInt(materials.size()));
+    }
+
+    @EventHandler
     public void onPlayerDeath(PlayerDeathEvent event) {
         if (!gameActive) return;
 
-        Player player = event.getEntity();
-        player.sendMessage(Component.text("You have died! You are out of the OneBlock game.").color(NamedTextColor.RED));
+        Player player = event.getPlayer();
         players.remove(player);
+        playerBlocks.remove(player);
+        player.setGameMode(GameMode.SPECTATOR);
         checkWinner();
     }
 
@@ -228,6 +213,7 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
         Player player = event.getPlayer();
         players.remove(player);
+        playerBlocks.remove(player);
         checkWinner();
     }
 
@@ -243,35 +229,46 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
         }
     }
 
-    private void shrinkBorder() {
-        World world = Bukkit.getWorlds().get(0);
-        WorldBorder border = world.getWorldBorder();
-        border.setSize(border.getSize() - 50);
-    }
-
-    private void endGame() {
+    public void endGame() {
         gameActive = false;
-        players.forEach(player -> {
-            player.sendMessage(Component.text("OneBlock game has ended!").color(NamedTextColor.RED));
-        });
-
-        Bukkit.getWorlds().forEach(w -> w.getWorldBorder().setSize(6000));
-
-        World world = Bukkit.getWorlds().get(0);
-        playerBlocks.values().forEach(location -> {
-            Block block = world.getBlockAt(location);
-            block.setType(Material.AIR);
-            location.clone().add(0, -1, 0).getBlock().setType(Material.AIR);
-        });
-
         if (stageTimer != null) {
             stageTimer.cancel();
         }
         if (borderShrinkTimer != null) {
             borderShrinkTimer.cancel();
         }
+        Bukkit.getWorlds().forEach(world -> world.getWorldBorder().setSize(6000));
+
+        World world = Bukkit.getWorlds().get(0);
+        placedBlocks.forEach(location -> {
+            Block block = world.getBlockAt(location);
+            block.setType(Material.AIR);
+        });
+        initialBlocks.forEach(location -> {
+            Block block = world.getBlockAt(location);
+            block.setType(Material.AIR);
+        });
+
+        players.forEach(player -> {
+            player.setGameMode(GameMode.SURVIVAL);
+            player.teleportAsync(player.getWorld().getSpawnLocation());
+        });
 
         players.clear();
         playerBlocks.clear();
+        placedBlocks.clear();
+        initialBlocks.clear();
+
+        Bukkit.broadcast(Component.text("The OneBlock game has ended!").color(NamedTextColor.GREEN));
+    }
+
+    private void shrinkBorder() {
+        int newSize = borderSize - 100;
+        if (newSize > 50) {
+            borderSize = newSize;
+            Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "worldborder set " + newSize + " 300");
+        } else {
+            Bukkit.broadcast(Component.text("The border has stopped shrinking!").color(NamedTextColor.YELLOW));
+        }
     }
 }
