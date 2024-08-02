@@ -12,12 +12,14 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.BlockBreakEvent;
 import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
-import org.bukkit.inventory.ItemStack;
 
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 public class OneBlockPlugin extends JavaPlugin implements Listener {
 
@@ -55,7 +57,6 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             }
         });
 
-
         new BukkitRunnable() {
             @Override
             public void run() {
@@ -64,7 +65,6 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
                 }
             }
         }.runTaskTimer(this, 3600, 3600);
-
 
         new BukkitRunnable() {
             @Override
@@ -112,6 +112,8 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
             chunkFuture.thenAccept(chunk -> {
                 blockLoc.getBlock().setType(Material.GRASS_BLOCK);
                 playerBlocks.put(player, blockLoc);
+                // Place a bedrock block beneath the initial block
+                blockLoc.clone().add(0, -1, 0).getBlock().setType(Material.BEDROCK);
                 player.teleportAsync(blockLoc.clone().add(0.5, 1, 0.5));
             });
         }
@@ -129,8 +131,14 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
         if (playerBlocks.containsValue(block.getLocation())) {
             event.setCancelled(true);
 
-            ItemStack droppedItem = new ItemStack(block.getType());
-            block.getWorld().dropItemNaturally(player.getLocation(), droppedItem);
+
+            ItemStack tool = player.getInventory().getItemInMainHand();
+            Collection<ItemStack> drops = block.getDrops(tool);
+
+
+            for (ItemStack drop : drops) {
+                block.getWorld().dropItemNaturally(player.getLocation(), drop);
+            }
 
             Material newMaterial = getRandomMaterial();
             block.setType(newMaterial);
@@ -143,7 +151,11 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
     }
 
     private Material getRandomMaterial() {
-        List<Material> materials = stageBlocks.get(stage);
+
+        List<Material> materials = IntStream.rangeClosed(1, stage)
+                .mapToObj(stageBlocks::get)
+                .flatMap(List::stream)
+                .collect(Collectors.toList());
         return materials.get(new Random().nextInt(materials.size()));
     }
 
@@ -199,6 +211,11 @@ public class OneBlockPlugin extends JavaPlugin implements Listener {
 
     public void endGame() {
         gameActive = false;
+
+        for (Location loc : playerBlocks.values()) {
+            loc.getBlock().setType(Material.AIR);
+            loc.clone().add(0, -1, 0).getBlock().setType(Material.AIR);
+        }
         players.clear();
         playerBlocks.clear();
         Bukkit.getServer().dispatchCommand(Bukkit.getConsoleSender(), "worldborder set 1000");
